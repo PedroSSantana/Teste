@@ -1,0 +1,8 @@
+bin/
+obj/
+Relatorios/
+.vscode/
+*.tmp
+*.temp
+Thumbs.db
+Desktop.ini
