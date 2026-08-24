@@ -100,6 +100,23 @@ class Program
 
 
             // ==========================================
+            // REDE
+            // ==========================================
+
+            var dadosRede =
+                Rede.Coletar();
+
+            relatorio.CriarArquivo(
+                "05 - Rede.txt",
+                "05 - REDE",
+                dadosRede
+            );
+
+            Console.WriteLine(
+                "Rede: OK"
+            );
+
+            // ==========================================
             // FINAL
             // ==========================================
 
