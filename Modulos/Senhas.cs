@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Data.Sqlite;
 
@@ -223,6 +224,19 @@ namespace Teste.Modulos
                         ? 0
                         : leitor.GetInt64(8);
 
+                string fingerprint =
+                    GerarFingerprint(
+                        origem,
+                        acao,
+                        usuario,
+                        dataCriacao,
+                        ultimoUso,
+                        senhaModificada,
+                        vezesUsada,
+                        bloqueada,
+                        tamanhoProtegido
+                    );
+
                 quantidade++;
 
                 resultado.AppendLine();
@@ -279,7 +293,12 @@ namespace Teste.Modulos
                 );
 
                 resultado.AppendLine(
-                    "Senha: [PROTEGIDA]"
+                    "Fingerprint SHA-256: " +
+                    fingerprint
+                );
+
+                resultado.AppendLine(
+                    "Senha: [NÃO EXPORTADA]"
                 );
             }
 
@@ -288,6 +307,37 @@ namespace Teste.Modulos
                 "Total de registros encontrados: " +
                 quantidade
             );
+        }
+
+        private string GerarFingerprint(
+            string origem,
+            string acao,
+            string usuario,
+            long dataCriacao,
+            long ultimoUso,
+            long senhaModificada,
+            long vezesUsada,
+            bool bloqueada,
+            long tamanhoProtegido)
+        {
+            string dados =
+                origem + "|" +
+                acao + "|" +
+                usuario + "|" +
+                dataCriacao + "|" +
+                ultimoUso + "|" +
+                senhaModificada + "|" +
+                vezesUsada + "|" +
+                bloqueada + "|" +
+                tamanhoProtegido;
+
+            byte[] bytes =
+                Encoding.UTF8.GetBytes(dados);
+
+            byte[] hash =
+                SHA256.HashData(bytes);
+
+            return Convert.ToHexString(hash);
         }
 
         private DateTime ConverterDataChrome(
