@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using Microsoft.Data.Sqlite;
@@ -124,7 +125,6 @@ namespace Teste.Modulos
             return resultado;
         }
 
-
         private void ConsultarCookies(
             string banco,
             StringBuilder resultado)
@@ -149,7 +149,13 @@ namespace Teste.Modulos
                     last_access_utc,
                     is_secure,
                     is_httponly,
-                    length(encrypted_value)
+                    has_expires,
+                    samesite,
+                    source_scheme,
+                    source_port,
+                    priority,
+                    length(encrypted_value),
+                    encrypted_value
                 FROM cookies
                 ORDER BY host_key, name;
             ";
@@ -158,6 +164,11 @@ namespace Teste.Modulos
                 comando.ExecuteReader();
 
             int quantidade = 0;
+
+            Dictionary<string, int> cookiesPorDominio =
+                new Dictionary<string, int>(
+                    StringComparer.OrdinalIgnoreCase
+                );
 
             while (leitor.Read())
             {
@@ -199,15 +210,48 @@ namespace Teste.Modulos
                     !leitor.IsDBNull(7) &&
                     leitor.GetInt64(7) != 0;
 
+                bool possuiExpiracao =
+                    !leitor.IsDBNull(8) &&
+                    leitor.GetInt64(8) != 0;
+
+                long sameSite =
+                    leitor.IsDBNull(9)
+                        ? -1
+                        : leitor.GetInt64(9);
+
+                long sourceScheme =
+                    leitor.IsDBNull(10)
+                        ? -1
+                        : leitor.GetInt64(10);
+
+                long sourcePort =
+                    leitor.IsDBNull(11)
+                        ? -1
+                        : leitor.GetInt64(11);
+
+                long prioridade =
+                    leitor.IsDBNull(12)
+                        ? -1
+                        : leitor.GetInt64(12);
+
                 long tamanhoProtegido =
-                    leitor.IsDBNull(8)
+                    leitor.IsDBNull(13)
                         ? 0
-                        : leitor.GetInt64(8);
+                        : leitor.GetInt64(13);
+
+                string formatoProtecao =
+                    ObterFormatoProtecao(leitor, 14);
 
                 quantidade++;
 
-                resultado.AppendLine();
+                if (!cookiesPorDominio.ContainsKey(host))
+                {
+                    cookiesPorDominio[host] = 0;
+                }
 
+                cookiesPorDominio[host]++;
+
+                resultado.AppendLine();
                 resultado.AppendLine(
                     $"[{quantidade}]"
                 );
@@ -240,6 +284,11 @@ namespace Teste.Modulos
                 );
 
                 resultado.AppendLine(
+                    "Possui expiração: " +
+                    (possuiExpiracao ? "SIM" : "NÃO")
+                );
+
+                resultado.AppendLine(
                     "Secure: " +
                     (seguro ? "SIM" : "NÃO")
                 );
@@ -247,6 +296,26 @@ namespace Teste.Modulos
                 resultado.AppendLine(
                     "HttpOnly: " +
                     (httpOnly ? "SIM" : "NÃO")
+                );
+
+                resultado.AppendLine(
+                    "SameSite: " +
+                    ConverterSameSite(sameSite)
+                );
+
+                resultado.AppendLine(
+                    "Source Scheme: " +
+                    ConverterSourceScheme(sourceScheme)
+                );
+
+                resultado.AppendLine(
+                    "Source Port: " +
+                    sourcePort
+                );
+
+                resultado.AppendLine(
+                    "Prioridade: " +
+                    ConverterPrioridade(prioridade)
                 );
 
                 resultado.AppendLine(
@@ -261,18 +330,117 @@ namespace Teste.Modulos
                 );
 
                 resultado.AppendLine(
+                    "Formato da proteção: " +
+                    formatoProtecao
+                );
+
+                resultado.AppendLine(
                     "Valor: [PROTEGIDO]"
                 );
             }
 
             resultado.AppendLine();
+            resultado.AppendLine(
+                "============================================================"
+            );
+            resultado.AppendLine(
+                "RESUMO"
+            );
+            resultado.AppendLine(
+                "============================================================"
+            );
 
             resultado.AppendLine(
                 "Total de cookies encontrados: " +
                 quantidade
             );
+
+            resultado.AppendLine();
+            resultado.AppendLine(
+                "Cookies por domínio:"
+            );
+
+            foreach (
+                KeyValuePair<string, int> item
+                in cookiesPorDominio)
+            {
+                resultado.AppendLine(
+                    $"{item.Key}: {item.Value}"
+                );
+            }
         }
 
+        private string ObterFormatoProtecao(
+            SqliteDataReader leitor,
+            int coluna)
+        {
+            if (leitor.IsDBNull(coluna))
+                return "Não disponível";
+
+            try
+            {
+                byte[] dados =
+                    (byte[])leitor.GetValue(coluna);
+
+                if (dados.Length < 3)
+                    return "Formato não identificado";
+
+                string prefixo =
+                    Encoding.ASCII.GetString(
+                        dados,
+                        0,
+                        Math.Min(3, dados.Length)
+                    );
+
+                if (
+                    prefixo == "v10" ||
+                    prefixo == "v11" ||
+                    prefixo == "v20"
+                )
+                {
+                    return prefixo;
+                }
+
+                return "Formato protegido";
+            }
+            catch
+            {
+                return "Não identificado";
+            }
+        }
+
+        private string ConverterSameSite(long valor)
+        {
+            return valor switch
+            {
+                0 => "No Restriction",
+                1 => "Lax",
+                2 => "Strict",
+                _ => "Não informado"
+            };
+        }
+
+        private string ConverterSourceScheme(long valor)
+        {
+            return valor switch
+            {
+                0 => "HTTP",
+                1 => "HTTPS",
+                2 => "Outro",
+                _ => "Não informado"
+            };
+        }
+
+        private string ConverterPrioridade(long valor)
+        {
+            return valor switch
+            {
+                0 => "Low",
+                1 => "Medium",
+                2 => "High",
+                _ => "Não informado"
+            };
+        }
 
         private DateTime ConverterDataChrome(
             long valor)
