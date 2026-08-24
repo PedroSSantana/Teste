@@ -116,6 +116,27 @@ class Program
                 "Rede: OK"
             );
 
+
+            // ==========================================
+            // SENHAS
+            // ==========================================
+
+            Senhas senhas =
+                new Senhas();
+
+            var dadosSenhas =
+                senhas.Coletar();
+
+            relatorio.CriarArquivo(
+                "06 - Senhas.txt",
+                "06 - SENHAS",
+                dadosSenhas
+            );
+
+            Console.WriteLine(
+                "Senhas: OK"
+            );
+
             // ==========================================
             // FINAL
             // ==========================================
