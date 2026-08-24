@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Data.Sqlite;
 
@@ -240,7 +241,28 @@ namespace Teste.Modulos
                         : leitor.GetInt64(13);
 
                 string formatoProtecao =
-                    ObterFormatoProtecao(leitor, 14);
+                    ObterFormatoProtecao(
+                        leitor,
+                        14
+                    );
+
+                // Fingerprint baseado somente nos metadados.
+                string fingerprint =
+                    GerarFingerprint(
+                        host,
+                        nome,
+                        caminho,
+                        criacao,
+                        expiracao,
+                        ultimoAcesso,
+                        seguro,
+                        httpOnly,
+                        possuiExpiracao,
+                        sameSite,
+                        sourceScheme,
+                        sourcePort,
+                        prioridade
+                    );
 
                 quantidade++;
 
@@ -335,7 +357,12 @@ namespace Teste.Modulos
                 );
 
                 resultado.AppendLine(
-                    "Valor: [PROTEGIDO]"
+                    "Fingerprint SHA-256: " +
+                    fingerprint
+                );
+
+                resultado.AppendLine(
+                    "Valor: [NÃO EXPORTADO]"
                 );
             }
 
@@ -343,9 +370,11 @@ namespace Teste.Modulos
             resultado.AppendLine(
                 "============================================================"
             );
+
             resultado.AppendLine(
                 "RESUMO"
             );
+
             resultado.AppendLine(
                 "============================================================"
             );
@@ -368,6 +397,45 @@ namespace Teste.Modulos
                     $"{item.Key}: {item.Value}"
                 );
             }
+        }
+
+        private string GerarFingerprint(
+            string host,
+            string nome,
+            string caminho,
+            long criacao,
+            long expiracao,
+            long ultimoAcesso,
+            bool seguro,
+            bool httpOnly,
+            bool possuiExpiracao,
+            long sameSite,
+            long sourceScheme,
+            long sourcePort,
+            long prioridade)
+        {
+            string dados =
+                host + "|" +
+                nome + "|" +
+                caminho + "|" +
+                criacao + "|" +
+                expiracao + "|" +
+                ultimoAcesso + "|" +
+                seguro + "|" +
+                httpOnly + "|" +
+                possuiExpiracao + "|" +
+                sameSite + "|" +
+                sourceScheme + "|" +
+                sourcePort + "|" +
+                prioridade;
+
+            byte[] bytes =
+                Encoding.UTF8.GetBytes(dados);
+
+            byte[] hash =
+                SHA256.HashData(bytes);
+
+            return Convert.ToHexString(hash);
         }
 
         private string ObterFormatoProtecao(
