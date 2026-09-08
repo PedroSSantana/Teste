@@ -29,12 +29,12 @@ public static class SystemCollector
 
     public static void Software(Report r)
     {
-        foreach (var hive in new[] { Registry.LocalMachine, Registry.CurrentUser })
+        foreach (var hive in new[] { RegistryHive.LocalMachine, RegistryHive.CurrentUser })
         foreach (var view in new[] { RegistryView.Registry64, RegistryView.Registry32 })
         {
             try
             {
-                using var root = hive.OpenBaseKey(view, RegistryView.Default);
+                using var root = RegistryKey.OpenBaseKey(hive, view);
                 using var key = root.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall");
                 if (key is null) continue;
 

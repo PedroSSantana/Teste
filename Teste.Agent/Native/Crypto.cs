@@ -62,10 +62,11 @@ public static class Crypto
         return plain;
     }
 
-    public static string? ChromeTime(long microseconds)
+     public static string? ChromeTime(long microseconds)
     {
         if (microseconds <= 0 || microseconds > 99486215040000000L) return null;
-        try { return DateTimeOffset.FromFileTimeUtc(microseconds * 10).ToString("O"); } catch { return null; }
+        try { return new DateTimeOffset(DateTime.FromFileTimeUtc(microseconds * 10)).ToString("O"); }
+        catch { return null; }
     }
 
     public static double Entropy(ReadOnlySpan<byte> data)
