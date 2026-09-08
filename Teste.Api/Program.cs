@@ -34,3 +34,4 @@ app.MapPost("/inventario", (Inventario dados) =>
 });
 
 app.Run();
+

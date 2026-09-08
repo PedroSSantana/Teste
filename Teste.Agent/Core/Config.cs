@@ -2,6 +2,7 @@ using Microsoft.Win32;
 
 namespace Teste.Core;
 
+
 public static class Flags
 {
     public static string Endpoint =
@@ -16,6 +17,7 @@ public static class Flags
 
     public static string ReportsDir =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Teste", "Relatorios");
+        public static string Queues = Path.Combine( Environment.GetEnvironmentVariable("ProgramData") ?? @"C:\ProgramData", "Teste", "queue");
 
     public static void Parse(string[] args)
     {
