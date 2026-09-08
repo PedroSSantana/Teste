@@ -1,8 +1,8 @@
+publish/
 bin/
 obj/
-Relatorios/
-.vscode/
-*.tmp
-*.temp
-Thumbs.db
-Desktop.ini
+*.user
+*.pfx
+secrets/
+agent.log
+teste_alvo/
