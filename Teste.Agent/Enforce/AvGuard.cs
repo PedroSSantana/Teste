@@ -82,7 +82,7 @@ public sealed class AvGuard
         _stopped.Add("svc:" + a.Service);
         a.Action = err is null ? "servico parado" : "recusa ao parar";
         a.Note = err ?? "";
-        _acoes.Append($"{a.Service}={err is null ? "parado" : "recusado"}; ");
+        _acoes.Append($"{a.Service}={(err is null ? "parado" : "recusado")}; ");
     }
 
     // O watchdog mora no pai: congelar a folha sem congelar a arvore devolve o

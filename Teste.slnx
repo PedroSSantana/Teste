@@ -1,6 +1,6 @@
 <Solution>
-  <Folder Name="/Teste.Agent/">
-    <Project Path="Teste.Agent/Teste.csproj" />
-  </Folder>
+  <Folder Name="/Teste.Agent/" />
+  <Project Path="Teste.Agent/Teste.csproj" />
+  <Project Path="Teste.Shared/Teste.Shared.csproj" />
   <Project Path="Teste.Api/Teste.Api.csproj" />
 </Solution>
