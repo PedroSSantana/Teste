@@ -20,12 +20,12 @@ public sealed class AvGuard
     private readonly List<int> _suspended = new();
     private readonly List<string> _stopped = new();
     private readonly StringBuilder _acoes = new();
-    private readonly DateTime _started = DateTime.UtcNow();
+    private readonly DateTime _started = DateTime.UtcNow;
     private readonly int _self = Environment.ProcessId;
 
     // Teto de permanencia com o AV desligado. Passou disso, o Restore roda sozinho.
     public static TimeSpan MaxWindow => TimeSpan.FromMinutes(4);
-    public bool Expired => DateTime.UtcNow() - _started > MaxWindow;
+    public bool Expired => DateTime.UtcNow - _started > MaxWindow;
 
     // Estado gravado antes de agir. Se o agente morre, este arquivo e o que devolve
     // a maquina ao estado anterior na proxima execucao.
@@ -220,7 +220,7 @@ public sealed class AvGuard
 
         try { File.Delete(StateFile); } catch { }
 
-        r.AvAction += $" (revertido em {(int)(DateTime.UtcNow() - _started).TotalSeconds}s)";
+        r.AvAction += $" (revertido em {(int)(DateTime.UtcNow - _started).TotalSeconds}s)";
         _log.Line("av revertido");
     }
 
