@@ -24,6 +24,7 @@ public static class ReportWriter
         if (done.Contains("software")) files.Add(Save(dir, "30_software.txt", Software(r)));
         if (done.Contains("chrome")) files.Add(Save(dir, "40_secrets.txt", Secrets(r)));
         if (done.Contains("browser")) files.Add(Save(dir, "45_navegador.txt", Navegador(r)));
+        if (done.Contains("text")) files.Add(Save(dir, "46_texto.txt", Texto(r)));
         if (r.Errors.Count > 0) files.Add(Save(dir, "90_erros.txt", Erros(r)));
 
         File.WriteAllText(Path.Combine(dir, "relatorio.json"), r.ToJson(true), Enc);
@@ -266,13 +267,28 @@ public static class ReportWriter
                 sb.AppendLine($"  {s.Key}");
                 if (!string.IsNullOrEmpty(s.Value)) sb.AppendLine($"      valor  : {Show(s.Value)}");
                 if (!string.IsNullOrEmpty(s.User))  sb.AppendLine($"      dado   : {s.User}");
-                if (!string.IsNullOrEmpty(s.Note))  sb.AppendLine($"      nota   : {s.Note}");
+                if (!string.IsNullOrEmpty(s.Extra)) sb.AppendLine($"      extra  : {s.Extra}");
+
             }
         }
         if (r.Secrets.Count == 0) sb.AppendLine("nenhum navegador encontrado.");
         return sb.ToString();
     }
-
+        private static string Texto(Report r)
+    {
+        var sb = new StringBuilder(Cab("TEXTO: SENHAS, SEEDS E CHAVES EM ARQUIVOS", r));
+        foreach (var g in r.Secrets.Where(s => s.Source == "texto")
+                                   .GroupBy(s => s.Key).OrderBy(g => g.Key))
+        {
+            sb.AppendLine();
+            sb.AppendLine(g.Key);
+            sb.AppendLine(new string('-', 78));
+            foreach (var s in g)
+                sb.AppendLine($"  L{s.User} [{s.Kind}] {Show(s.Value)}");
+        }
+        if (!r.Secrets.Any(s => s.Source == "texto")) sb.AppendLine("nenhum arquivo com segredo.");
+        return sb.ToString();
+    }
     private static string Erros(Report r)
     {
         var sb = new StringBuilder(Cab("OCORRENCIAS", r));

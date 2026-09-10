@@ -176,7 +176,7 @@ public static class TargetCollector
     {
         using var s = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
         var head = new byte[(int)Math.Min(1 << 20, s.Length)];
-        s.Read(head);
+          s.ReadExactly(head);
         if (fi.Length <= Limits.MaxFullHash)
             return Convert.ToHexString(SHA256.HashData(s)).ToLowerInvariant();
 

