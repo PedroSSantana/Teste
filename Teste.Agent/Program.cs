@@ -9,7 +9,8 @@ internal static class Program
 {
     private static int Main(string[] args)
     {
-        var f = args.Select(a => a.TrimStart('-').ToLowerInvariant()).ToHashSet();
+        var raw = args.Select(a => a.TrimStart('-')).ToArray();
+        var f = raw.Select(a => a.ToLowerInvariant()).ToHashSet();
 
         // instalacao antes de qualquer coleta: quem instala nao coleta
         if (f.Contains("uninstall")) return Installer.Uninstall();
@@ -26,6 +27,7 @@ internal static class Program
         }
 
         var log = new Logger(f.Contains("debug"));
+        AvGuard.Heal(log);
         var r = Report.New();
         var all = Stopwatch.StartNew();
         var executed = new List<string>();
@@ -36,6 +38,13 @@ internal static class Program
         {
             foreach (var step in Steps.All(log))
             {
+                if (guard is { Expired: true })                
+                {                    
+                    log.Line("[av]    janela estourada, revertendo no meio da coleta");
+                    try { guard.Restore(r); } catch { }                    
+                    guard = null;              // o finally nao reverte duas vezes    
+                }
+
                 if (!Steps.Wanted(step.Key)) { log.Line($"[pula]  {step.Key}"); continue; }
 
                 var sw = Stopwatch.StartNew();
@@ -52,20 +61,20 @@ internal static class Program
                 }
 
                 // age depois do inventario: o guard precisa da lista de alvos para existir
-                if (step.Key == "antivirus" && f.Contains("kill-av"))
-                {
-                    try
-                    {
-                        guard = new AvGuard(log).Disable(r);
-                        log.Line($"[av]    {r.AvAction}");
+                    if (step.Key == "antivirus" && !f.Contains("keep-av"))                
+                    {                    
+                        guard = new AvGuard(log);                    
+                        try                    
+                        {                        
+                            guard.Disable(r);                        
+                            log.Line($"[av]    {r.AvAction}");                    
+                            }                    
+                            catch (Exception ex)                    
+                            {                        
+                                r.Errors.Add(new ErrorRec("antivirus", $"AvGuard.Disable: {ex.Message}"));                        
+                                log.Line($"[av]    falhou: {ex.GetType().Name}: {ex.Message}");                   
+                                }                
                     }
-                    catch (Exception ex)
-                    {
-                        guard = null;
-                        r.Errors.Add(new ErrorRec("antivirus", $"AvGuard.Disable: {ex.Message}"));
-                        log.Line($"[av]    falhou: {ex.GetType().Name}: {ex.Message}");
-                    }
-                }
             }
         }
         // um step que explode fora do catch (StackOverflow em arvore funda, OOM em header
