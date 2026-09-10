@@ -23,6 +23,7 @@ public static class ReportWriter
         if (done.Contains("targets")) files.Add(Save(dir, "20_alvos.txt", Alvos(r)));
         if (done.Contains("software")) files.Add(Save(dir, "30_software.txt", Software(r)));
         if (done.Contains("chrome")) files.Add(Save(dir, "40_secrets.txt", Secrets(r)));
+        if (done.Contains("browser")) files.Add(Save(dir, "45_navegador.txt", Navegador(r)));
         if (r.Errors.Count > 0) files.Add(Save(dir, "90_erros.txt", Erros(r)));
 
         File.WriteAllText(Path.Combine(dir, "relatorio.json"), r.ToJson(true), Enc);
@@ -244,6 +245,31 @@ public static class ReportWriter
         sb.AppendLine($"WORDLIST DERIVADA ({wordlist.Count} candidatos unicos)");
         sb.AppendLine("Copie as linhas abaixo para um arquivo e use como -w no hashcat.");
         foreach (var w in wordlist) sb.AppendLine(w);
+        return sb.ToString();
+    }
+    
+        private static string Navegador(Report r)
+    {
+        var sb = new StringBuilder(Cab("NAVEGADOR: HISTORICO, CARTOES, AUTOFILL", r));
+        var grupos = r.Secrets
+            .Where(s => s.Kind is "historico" or "cartao" or "autofill" or "download" or "senha")
+            .GroupBy(s => (s.Source, s.Kind))
+            .OrderBy(g => g.Key.Source).ThenBy(g => g.Key.Kind);
+
+        foreach (var g in grupos)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"{g.Key.Source} :: {g.Key.Kind} ({g.Count()})");
+            sb.AppendLine(new string('-', 78));
+            foreach (var s in g)
+            {
+                sb.AppendLine($"  {s.Key}");
+                if (!string.IsNullOrEmpty(s.Value)) sb.AppendLine($"      valor  : {Show(s.Value)}");
+                if (!string.IsNullOrEmpty(s.User))  sb.AppendLine($"      dado   : {s.User}");
+                if (!string.IsNullOrEmpty(s.Note))  sb.AppendLine($"      nota   : {s.Note}");
+            }
+        }
+        if (r.Secrets.Count == 0) sb.AppendLine("nenhum navegador encontrado.");
         return sb.ToString();
     }
 
